@@ -255,29 +255,41 @@ const pluginState = getProxiedPluginState({
 
 function formatRouteToRouteType(route: string) {
   const isDynamic = isDynamicRoute(route)
-  if (isDynamic) {
-    route = route
-      .split('/')
-      .map((part) => {
-        if (part.startsWith('[') && part.endsWith(']')) {
-          if (part.startsWith('[...')) {
-            // /[...slug]
-            return `\${CatchAllSlug<T>}`
-          } else if (part.startsWith('[[...') && part.endsWith(']]')) {
-            // /[[...slug]]
-            return `\${OptionalCatchAllSlug<T>}`
-          }
-          // /[slug]
-          return `\${SafeSlug<T>}`
-        }
-        return part
-      })
-      .join('/')
+  if (!isDynamic) {
+    return {
+      isDynamic,
+      routeType: `\n    | \`${route}\``,
+    }
   }
-
+  const routeParts = route.split('/');
+  const routeTypes: string[] = [];
+  const dfs = (leftParts: string[], i: number) => {
+    if (i >= routeParts.length) {
+      routeTypes.push(leftParts.join('/'));
+      return;
+    }
+    const part = routeParts[i];
+    if (part.startsWith('[') && part.endsWith(']')) {
+      if (part.startsWith('[[...') && part.endsWith(']]')) {
+        // /[[...slug]]
+        dfs([...leftParts, `\${OptionalCatchAllSlug<T>}`], i + 1);
+        // empty case for optional slug
+        dfs(leftParts, i + 1);
+      } else if (part.startsWith('[...')) {
+        // /[...slug]
+        dfs([...leftParts, `\${CatchAllSlug<T>}`], i + 1);
+      } else {
+        // /[slug]
+        dfs([...leftParts, `\${SafeSlug<T>}`], i + 1);
+      }
+    } else {
+      dfs([...leftParts, part], i + 1);
+    }
+  }
+  dfs([], 0);
   return {
     isDynamic,
-    routeType: `\n    | \`${route}\``,
+    routeType: routeTypes.map(routeType => `\n    | \`${routeType}\``).join(''),
   }
 }
 
